@@ -14,7 +14,122 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      auth_nonces: {
+        Row: {
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          nonce: string
+          wallet_address: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          nonce: string
+          wallet_address: string
+        }
+        Update: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          nonce?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          socials: Json
+          tip_wallet: string
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          socials?: Json
+          tip_wallet: string
+          updated_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          socials?: Json
+          tip_wallet?: string
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      receipts: {
+        Row: {
+          amount: string
+          created_at: string
+          hidden: boolean
+          id: string
+          message: string | null
+          recipient_profile_id: string | null
+          recipient_wallet: string
+          sender_user_id: string | null
+          sender_wallet: string
+          token_address: string
+          token_symbol: string
+          tx_hash: string
+        }
+        Insert: {
+          amount: string
+          created_at?: string
+          hidden?: boolean
+          id?: string
+          message?: string | null
+          recipient_profile_id?: string | null
+          recipient_wallet: string
+          sender_user_id?: string | null
+          sender_wallet: string
+          token_address: string
+          token_symbol: string
+          tx_hash: string
+        }
+        Update: {
+          amount?: string
+          created_at?: string
+          hidden?: boolean
+          id?: string
+          message?: string | null
+          recipient_profile_id?: string | null
+          recipient_wallet?: string
+          sender_user_id?: string | null
+          sender_wallet?: string
+          token_address?: string
+          token_symbol?: string
+          tx_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receipts_recipient_profile_id_fkey"
+            columns: ["recipient_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

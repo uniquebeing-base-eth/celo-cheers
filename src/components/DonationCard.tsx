@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { CREATOR, QUICK_AMOUNTS } from "@/config/donation";
-import { saveSupporter } from "@/lib/supporters";
+import { QUICK_AMOUNTS } from "@/config/donation";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import type { useCeloWallet } from "@/hooks/useCeloWallet";
 
 const ERC20_TRANSFER_ABI = [
@@ -25,18 +26,26 @@ const ERC20_TRANSFER_ABI = [
   },
 ] as const;
 
+interface Recipient {
+  profileId: string | null; // null if tipping a wallet not tied to a profile
+  wallet: string;
+  name: string;
+}
+
 interface Props {
   wallet: ReturnType<typeof useCeloWallet>;
+  recipient: Recipient;
   onSuccess: () => void;
 }
 
 type TokenSymbol = "cUSD" | "cEUR" | "CELO";
 
-export const DonationCard = ({ wallet, onSuccess }: Props) => {
+export const DonationCard = ({ wallet, recipient, onSuccess }: Props) => {
   const [amount, setAmount] = useState<string>("3");
   const [message, setMessage] = useState("");
   const [tokenSymbol, setTokenSymbol] = useState<TokenSymbol>("cUSD");
   const [submitting, setSubmitting] = useState(false);
+  const { user } = useAuth();
 
   const token = useMemo(
     () => CELO_TOKENS.find((t) => t.symbol === tokenSymbol) ?? CELO_TOKENS[0],
@@ -65,11 +74,9 @@ export const DonationCard = ({ wallet, onSuccess }: Props) => {
       const data = encodeFunctionData({
         abi: ERC20_TRANSFER_ABI,
         functionName: "transfer",
-        args: [CREATOR.address, value],
+        args: [recipient.wallet as Address, value],
       });
 
-      // Direct ERC20 transfer — no relayer needed.
-      // Works natively with MiniPay, MetaMask, Farcaster wallets.
       const hash: `0x${string}` = await (wallet.walletClient as any).sendTransaction({
         account: wallet.address,
         chain: celo,
@@ -78,18 +85,26 @@ export const DonationCard = ({ wallet, onSuccess }: Props) => {
         value: 0n,
       });
 
-      saveSupporter({
-        id: crypto.randomUUID(),
-        address: wallet.address,
+      // Log receipt to DB (RLS allows anyone to insert; only sender_user_id
+      // is attached if signed in).
+      const { error: recErr } = await supabase.from("receipts").insert({
+        recipient_profile_id: recipient.profileId,
+        recipient_wallet: recipient.wallet,
+        sender_wallet: wallet.address,
+        sender_user_id: user?.id ?? null,
+        token_symbol: token.symbol,
+        token_address: token.address,
         amount,
-        token: token.symbol,
-        message,
-        hash,
-        createdAt: Date.now(),
+        message: message || null,
+        tx_hash: hash,
       });
+      if (recErr) {
+        console.warn("Failed to log receipt", recErr);
+      }
+
       toast({
         title: "☕ Coffee delivered!",
-        description: `Sent ${amount} ${token.symbol} — tx ${hash.slice(0, 10)}…`,
+        description: `Sent ${amount} ${token.symbol} to ${recipient.name} — tx ${hash.slice(0, 10)}…`,
       });
       setMessage("");
       onSuccess();
@@ -108,7 +123,7 @@ export const DonationCard = ({ wallet, onSuccess }: Props) => {
     <div className="rounded-3xl border border-border bg-card p-6 shadow-warm sm:p-8">
       <div className="mb-6 flex items-center gap-2">
         <Sparkles className="h-5 w-5 text-accent" />
-        <h2 className="text-xl font-bold">Buy a coffee</h2>
+        <h2 className="text-xl font-bold">Buy {recipient.name} a coffee</h2>
       </div>
 
       {/* Token picker */}
