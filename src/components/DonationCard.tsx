@@ -1,14 +1,29 @@
 import { useMemo, useState } from "react";
-import { CELO_TOKENS, sendTip } from "senditwithcelo-sdk";
+import { CELO_TOKENS } from "senditwithcelo-sdk";
+import { parseUnits, encodeFunctionData, type Address } from "viem";
+import { celo } from "viem/chains";
 import { Coffee, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { CREATOR, QUICK_AMOUNTS, RELAYER_URL } from "@/config/donation";
+import { CREATOR, QUICK_AMOUNTS } from "@/config/donation";
 import { saveSupporter } from "@/lib/supporters";
 import type { useCeloWallet } from "@/hooks/useCeloWallet";
+
+const ERC20_TRANSFER_ABI = [
+  {
+    name: "transfer",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+] as const;
 
 interface Props {
   wallet: ReturnType<typeof useCeloWallet>;
@@ -44,47 +59,44 @@ export const DonationCard = ({ wallet, onSuccess }: Props) => {
       await wallet.connect();
       return;
     }
-    if (!RELAYER_URL) {
-      toast({
-        title: "Relayer not configured",
-        description:
-          "Set VITE_RELAYER_URL to your senditwithcelo relayer endpoint to enable on-chain tips.",
-        variant: "destructive",
-      });
-      return;
-    }
     setSubmitting(true);
     try {
-      const result = await sendTip({
-        from: wallet.address,
-        to: CREATOR.address,
-        tokenAddress: token.address,
-        amount,
-        decimals: token.decimals,
-        message: message || "thanks!",
-        relayerUrl: RELAYER_URL,
-        walletClient: wallet.walletClient as any,
-        publicClient: wallet.publicClient as any,
+      const value = parseUnits(amount, token.decimals);
+      const data = encodeFunctionData({
+        abi: ERC20_TRANSFER_ABI,
+        functionName: "transfer",
+        args: [CREATOR.address, value],
       });
+
+      // Direct ERC20 transfer — no relayer needed.
+      // Works natively with MiniPay, MetaMask, Farcaster wallets.
+      const hash = await wallet.walletClient.sendTransaction({
+        account: wallet.address,
+        chain: celo,
+        to: token.address as Address,
+        data,
+        value: 0n,
+      });
+
       saveSupporter({
         id: crypto.randomUUID(),
         address: wallet.address,
         amount,
         token: token.symbol,
         message,
-        hash: result.hash,
+        hash,
         createdAt: Date.now(),
       });
       toast({
         title: "☕ Coffee delivered!",
-        description: `Sent ${amount} ${token.symbol} — tx ${result.hash.slice(0, 10)}…`,
+        description: `Sent ${amount} ${token.symbol} — tx ${hash.slice(0, 10)}…`,
       });
       setMessage("");
       onSuccess();
     } catch (e: any) {
       toast({
         title: "Donation failed",
-        description: e?.message || "Something went wrong. Please try again.",
+        description: e?.shortMessage || e?.message || "Something went wrong. Please try again.",
         variant: "destructive",
       });
     } finally {
