@@ -70,7 +70,7 @@ export const DonationCard = ({ wallet, onSuccess }: Props) => {
 
       // Direct ERC20 transfer — no relayer needed.
       // Works natively with MiniPay, MetaMask, Farcaster wallets.
-      const hash = await wallet.walletClient.sendTransaction({
+      const hash: `0x${string}` = await (wallet.walletClient as any).sendTransaction({
         account: wallet.address,
         chain: celo,
         to: token.address as Address,
