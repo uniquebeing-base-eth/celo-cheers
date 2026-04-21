@@ -96,12 +96,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (verifyRes.error || !verifyRes.data?.token_hash) {
       throw new Error(verifyRes.error?.message || "Signature verification failed");
     }
-    const { email, token_hash } = verifyRes.data;
+    const { token_hash } = verifyRes.data;
 
     // 4. Exchange token_hash for a session.
     const { error } = await supabase.auth.verifyOtp({
       type: "magiclink",
-      email,
       token_hash,
     });
     if (error) throw error;
